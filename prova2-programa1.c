@@ -1,52 +1,55 @@
-
 #include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
 #include <ctype.h>
-#include <stdio.h>
 
-#define MAX_MEDICOES 50
-#define MAX 50
-
+#define TAM_NOME_ARQUIVO 25
+#define QTD_MAX_SENSORES 50
+#define TAM_NOME_SENSOR 50
+#define TAM_NOME_TIPO_DADO 8 //INTEIRO, REAL, LITERAL, LOGICO
+#define QTD_MAX_MEDICOES 50
+#define TAM_STRING_VALOR 10
 typedef struct
 {
     int timestamp;
-    char valor[MAX];
+    char valor_str[TAM_STRING_VALOR];
 } Medicao;
 
 typedef struct
 {
-    char id_sensor[MAX];
-    char tipo_dados_medicoes[MAX];
+    char id_sensor[TAM_NOME_SENSOR];
+    char tipo_dado_medicao[TAM_NOME_TIPO_DADO];
     int qtd_medicoes_sensor;
-    Medicao medicao[MAX_MEDICOES];
+    Medicao medicao[QTD_MAX_MEDICOES];
+
 } MedicoesPorTipo;
 
-char *retornaTipoDeDado(char aux_valor[MAX]);
-void separarMedicoesPorTipoSensor(MedicoesPorTipo medicoes_por_tipo[], int *qtd_sensor_diferentes, int aux_timestamp, char aux_id_sensor[MAX], char aux_valor[MAX]);
-void lerConteudoArquivo(char *nomeArquivo, MedicoesPorTipo medicoes_por_tipo[]);
-void ordenarMedicoesPorTimestamp(MedicoesPorTipo medicoes_por_tipo[], int qtd_sensor_diferentes);
+void lerConteudoArquivo(char nomeArquivo[TAM_NOME_ARQUIVO], MedicoesPorTipo medicoes_por_tipo[]);
+void separarMedicoesPorTipoSensor(MedicoesPorTipo medicoes_por_tipo[], int *qtd_sensor_diferentes, int aux_timestamp, char aux_id_sensor[TAM_NOME_SENSOR], char aux_valor_str[TAM_STRING_VALOR]);
+void ordenaDecrescentementeMedicoesPorTimestamp(MedicoesPorTipo medicoes_por_tipo[], int qtd_sensor_diferentes);
+char* recuperaTipoDado(char valor[TAM_STRING_VALOR]);
 void gerarArquivosComMedicoes(MedicoesPorTipo medicoes_por_tipo[], int qtd_sensor_diferentes);
 
 int main(int argc, char *argv[])
 {
-    char nomeArquivo[21];
-    MedicoesPorTipo medicoes_por_tipo[MAX_MEDICOES];
+
+    // 20 posições para o nome do arquivo (índices 0–19); 4 posições para a extensão ".txt" (índices 20–23); 25ª posição para o terminador nulo '\0' (índice 24)
+    char nomeArquivo[TAM_NOME_ARQUIVO];
+    MedicoesPorTipo medicoes_por_tipo[QTD_MAX_SENSORES];
 
     if (argc >= 2) {
-        strcpy(nomeArquivo, argv[1]);
-    } else {
-        printf("Digite o nome do arquivo a ser lido: ");
-        scanf("%20s", nomeArquivo);
+        snprintf(nomeArquivo, TAM_NOME_ARQUIVO, "%.20s.txt", argv[1]);
     }
 
+    printf("O nome do arquivo é: %s\n", nomeArquivo);
+
     lerConteudoArquivo(nomeArquivo, medicoes_por_tipo);
-    printf("FIM...");
+
     return 0;
 }
 
-void lerConteudoArquivo(char *nomeArquivo, MedicoesPorTipo medicoes_por_tipo[])
+void lerConteudoArquivo(char nomeArquivo[TAM_NOME_ARQUIVO], MedicoesPorTipo medicoes_por_tipo[])
 {
 
     int qtd_sensor_diferentes = 0;
@@ -63,8 +66,8 @@ void lerConteudoArquivo(char *nomeArquivo, MedicoesPorTipo medicoes_por_tipo[])
     char linha[256];
 
     int aux_timestamp;
-    char aux_id_sensor[MAX];
-    char aux_valor[MAX];
+    char aux_id_sensor[TAM_NOME_SENSOR]; // 49 posições para o nome do sensor (índices 0-48); 50ª posição para o terminador nulo '\0' (índice 49)
+    char aux_valor_str[TAM_STRING_VALOR]; // 9 posições para o valor da medicao (índices 0–8); 10ª posição para o terminador nulo '\0' (índice 9)
 
     // Ignora a primeira linha (cabeçalho)
     fgets(linha, sizeof(linha), arquivo);
@@ -72,30 +75,39 @@ void lerConteudoArquivo(char *nomeArquivo, MedicoesPorTipo medicoes_por_tipo[])
     {
         char *token;
 
-        token = strtok(linha, " ");
+        //token = strtok(linha, " ");
+        token = strtok(linha, " \n\r");
         if (token)
             aux_timestamp = atoi(token);
 
-        token = strtok(NULL, " ");
-        strncpy(aux_id_sensor, token, MAX);
+        //token = strtok(NULL, " ");
+        token = strtok(NULL, " \n\r");
+        if (token)
+            snprintf(aux_id_sensor, TAM_NOME_SENSOR, "%s", token);
 
-        token = strtok(NULL, " ");
-        strncpy(aux_valor, token, MAX);
+        //token = strtok(NULL, " ");
+        token = strtok(NULL, " \n\r");
+        if (token)
+            snprintf(aux_valor_str, TAM_STRING_VALOR, "%s", token);
 
         qtd_leituras++;
 
-        separarMedicoesPorTipoSensor(medicoes_por_tipo, &qtd_sensor_diferentes, aux_timestamp, aux_id_sensor, aux_valor);
+        separarMedicoesPorTipoSensor(medicoes_por_tipo, &qtd_sensor_diferentes, aux_timestamp, aux_id_sensor, aux_valor_str);
     }
-    ordenarMedicoesPorTimestamp(medicoes_por_tipo, qtd_sensor_diferentes);
+    ordenaDecrescentementeMedicoesPorTimestamp(medicoes_por_tipo, qtd_sensor_diferentes);
     gerarArquivosComMedicoes(medicoes_por_tipo, qtd_sensor_diferentes);
     fclose(arquivo);
 }
 
-void separarMedicoesPorTipoSensor(MedicoesPorTipo medicoes_por_tipo[], int *qtd_sensor_diferentes, int aux_timestamp, char aux_id_sensor[MAX], char aux_valor[MAX])
+void separarMedicoesPorTipoSensor(MedicoesPorTipo medicoes_por_tipo[], int *qtd_sensor_diferentes, int aux_timestamp, char aux_id_sensor[TAM_NOME_SENSOR], char aux_valor_str[TAM_STRING_VALOR])
 {
-
-    bool static jaAdd = false;
+    bool static jaFoiAddPrimeiraMedicao = false;
     bool existe = false;
+
+    for (int i = 0; aux_valor_str[i] != '\0'; i++)
+    {
+        printf("aux_valor_str[%d]=%c\n", i, aux_valor_str[i]);
+    }
 
     int i = 0;
     do
@@ -103,7 +115,7 @@ void separarMedicoesPorTipoSensor(MedicoesPorTipo medicoes_por_tipo[], int *qtd_
         if (strcmp(medicoes_por_tipo[i].id_sensor, aux_id_sensor) == 0)
         {
             medicoes_por_tipo[i].medicao[medicoes_por_tipo[i].qtd_medicoes_sensor].timestamp = aux_timestamp;
-            strncpy(medicoes_por_tipo[i].medicao[medicoes_por_tipo[i].qtd_medicoes_sensor].valor, aux_valor, MAX);
+            snprintf(medicoes_por_tipo[i].medicao[medicoes_por_tipo[i].qtd_medicoes_sensor].valor_str, TAM_STRING_VALOR, "%s", aux_valor_str);
             medicoes_por_tipo[i].qtd_medicoes_sensor++;
             existe = true;
         }
@@ -112,33 +124,79 @@ void separarMedicoesPorTipoSensor(MedicoesPorTipo medicoes_por_tipo[], int *qtd_
 
     if (!existe)
     {
-
-        if (jaAdd == true)
+        if (jaFoiAddPrimeiraMedicao == true)
         {
-            strncpy(medicoes_por_tipo[i].id_sensor, aux_id_sensor, MAX);
-            strncpy(medicoes_por_tipo[i].tipo_dados_medicoes, retornaTipoDeDado(aux_valor), MAX);
+            snprintf(medicoes_por_tipo[i].id_sensor, TAM_NOME_SENSOR, "%s", aux_id_sensor);
+            snprintf(medicoes_por_tipo[i].tipo_dado_medicao, TAM_NOME_TIPO_DADO, "%s", recuperaTipoDado(aux_valor_str));
             medicoes_por_tipo[i].medicao[medicoes_por_tipo[i].qtd_medicoes_sensor].timestamp = aux_timestamp;
-            strncpy(medicoes_por_tipo[i].medicao[medicoes_por_tipo[i].qtd_medicoes_sensor].valor, aux_valor, MAX);
+            snprintf(medicoes_por_tipo[i].medicao[medicoes_por_tipo[i].qtd_medicoes_sensor].valor_str, TAM_STRING_VALOR, "%s", aux_valor_str);
             medicoes_por_tipo[i].qtd_medicoes_sensor++;
     
             (*qtd_sensor_diferentes)++;
         } else
         {
-            strncpy(medicoes_por_tipo[i-1].id_sensor, aux_id_sensor, MAX);
-            strncpy(medicoes_por_tipo[i-1].tipo_dados_medicoes, retornaTipoDeDado(aux_valor), MAX);
+            snprintf(medicoes_por_tipo[i-1].id_sensor, TAM_NOME_SENSOR, "%s", aux_id_sensor);
+            snprintf(medicoes_por_tipo[i-1].tipo_dado_medicao, TAM_NOME_TIPO_DADO, "%s", recuperaTipoDado(aux_valor_str));
             medicoes_por_tipo[i-1].medicao[medicoes_por_tipo[i-1].qtd_medicoes_sensor].timestamp = aux_timestamp;
-            strncpy(medicoes_por_tipo[i-1].medicao[medicoes_por_tipo[i-1].qtd_medicoes_sensor].valor, aux_valor, MAX);
+            snprintf(medicoes_por_tipo[i-1].medicao[medicoes_por_tipo[i-1].qtd_medicoes_sensor].valor_str, TAM_STRING_VALOR, "%s", aux_valor_str);
             medicoes_por_tipo[i-1].qtd_medicoes_sensor++;
             (*qtd_sensor_diferentes)++;
-            jaAdd = true;
+            jaFoiAddPrimeiraMedicao = true;
         }
     }
 }
 
-void ordenarMedicoesPorTimestamp(MedicoesPorTipo medicoes_por_tipo[], int qtd_sensor_diferentes)
+char* recuperaTipoDado(char valor[TAM_STRING_VALOR]) {
+
+    if (strcmp(valor, "true") == 0 || strcmp(valor, "false") == 0) {
+        return "LOGICO";
+    }
+
+    bool jaTemPonto = false;
+    bool temCaractere = false;
+
+    for (int i = 0; valor[i] != '\0'; i++)
+    {
+        printf("valor[%d]=%c\n", i, valor[i]);
+        if (valor[i] == '.')
+        {
+            if (jaTemPonto)
+            {
+                temCaractere = true;
+                break;
+            }
+            jaTemPonto = true;
+        } else if (!isdigit(valor[i]))
+        {
+            if (i != 0)
+            {
+                temCaractere = true;
+                break;
+            } else if (valor[i] != '-')
+            {
+                temCaractere = true;
+                break;
+            }
+        }
+    }
+
+    if (!temCaractere) {
+        if (jaTemPonto)
+        {
+            return "REAL";
+        }else
+        {
+            return "INTEIRO";
+        }
+    }
+
+    return "LITERAL";
+}
+
+void ordenaDecrescentementeMedicoesPorTimestamp(MedicoesPorTipo medicoes_por_tipo[], int qtd_sensor_diferentes)
 {
     int aux_timestamp;
-    char aux_valor[MAX];
+    char aux_valor_str[TAM_STRING_VALOR];
 
     for (int p = 0; p < qtd_sensor_diferentes; p++)
     {
@@ -151,15 +209,15 @@ void ordenarMedicoesPorTimestamp(MedicoesPorTipo medicoes_por_tipo[], int qtd_se
             {
                 printf("%d, ", j);
 
-                if ((medicoes_por_tipo[p].medicao[j].timestamp) > (medicoes_por_tipo[p].medicao[j + 1].timestamp))
+                if ((medicoes_por_tipo[p].medicao[j].timestamp) < (medicoes_por_tipo[p].medicao[j + 1].timestamp))
                 {
                     aux_timestamp = medicoes_por_tipo[p].medicao[j + 1].timestamp;
                     medicoes_por_tipo[p].medicao[j + 1].timestamp = medicoes_por_tipo[p].medicao[j].timestamp;
                     medicoes_por_tipo[p].medicao[j].timestamp = aux_timestamp;
 
-                    strncpy(aux_valor, medicoes_por_tipo[p].medicao[j + 1].valor, MAX);
-                    strncpy(medicoes_por_tipo[p].medicao[j + 1].valor, medicoes_por_tipo[p].medicao[j].valor, MAX);
-                    strncpy(medicoes_por_tipo[p].medicao[j].valor, aux_valor, MAX);
+                    snprintf(aux_valor_str, TAM_STRING_VALOR, "%s", medicoes_por_tipo[p].medicao[j + 1].valor_str);
+                    snprintf(medicoes_por_tipo[p].medicao[j + 1].valor_str, TAM_STRING_VALOR, "%s", medicoes_por_tipo[p].medicao[j].valor_str);
+                    snprintf(medicoes_por_tipo[p].medicao[j].valor_str, TAM_STRING_VALOR, "%s", aux_valor_str);
                 }
             }
         }
@@ -169,13 +227,12 @@ void ordenarMedicoesPorTimestamp(MedicoesPorTipo medicoes_por_tipo[], int qtd_se
 void gerarArquivosComMedicoes(MedicoesPorTipo medicoes_por_tipo[], int qtd_sensor_diferentes)
 {
 
-    char nome_arquivo[MAX + 5];
+    char nome_arquivo[TAM_NOME_SENSOR + 5];
 
     for (int p = 0; p < qtd_sensor_diferentes; p++)
     {
-        strcpy(nome_arquivo, medicoes_por_tipo[p].id_sensor);
 
-        strcat(nome_arquivo, ".txt");
+        snprintf(nome_arquivo, TAM_NOME_SENSOR, "%.45s.txt", medicoes_por_tipo[p].id_sensor);
 
         FILE *file = fopen(nome_arquivo, "w");
         if (file == NULL)
@@ -184,7 +241,7 @@ void gerarArquivosComMedicoes(MedicoesPorTipo medicoes_por_tipo[], int qtd_senso
             return;
         }
 
-        fprintf(file, "TIPO DE DADOS DESSE SENSOR: %s\n", medicoes_por_tipo[p].tipo_dados_medicoes);
+        fprintf(file, "TIPO DE DADOS DESSE SENSOR: %s\n", medicoes_por_tipo[p].tipo_dado_medicao);
         fprintf(file, "<TIMESTAMP><ID_SENSOR><VALOR>\n");
 
         for (int i = 0; i < medicoes_por_tipo[p].qtd_medicoes_sensor; i++)
@@ -193,63 +250,8 @@ void gerarArquivosComMedicoes(MedicoesPorTipo medicoes_por_tipo[], int qtd_senso
             fprintf(file, "%d,%s,%s\n",
                     medicoes_por_tipo[p].medicao[i].timestamp,
                     medicoes_por_tipo[p].id_sensor,
-                    medicoes_por_tipo[p].medicao[i].valor);
+                    medicoes_por_tipo[p].medicao[i].valor_str);
         }
         fclose(file);
-    }
-}
-
-void converteParaMinuscula(char *str) {
-    for (; *str; ++str) *str = tolower(*str);
-}
-
-int ehBooleano(char *str) {
-    char temp[MAX];
-    strncpy(temp, str, MAX);
-    converteParaMinuscula(temp);
-    return (strcmp(temp, "true") == 0 || strcmp(temp, "false") == 0);
-}
-
-int ehInteiro(char *str) {
-    if (*str == '-') str++;
-    if (*str == '\0') return 0;
-    while (*str) {
-        if (!isdigit(*str)) return 0;
-        str++;
-    }
-    return 1;
-}
-
-int ehReal(char *str) {
-    int jaTemPontoFlutuante = 0;
-    if (*str == '-') str++;
-    if (*str == '\0') return 0;
-
-    while (*str) {
-        if (*str == '.') {
-            if (jaTemPontoFlutuante) return 0;
-            jaTemPontoFlutuante = 1;
-        } else if (!isdigit(*str)) {
-            return 0;
-        }
-        str++;
-    }
-    return jaTemPontoFlutuante;
-}
-
-char *retornaTipoDeDado(char aux_valor[MAX])
-{
-    if (ehBooleano(aux_valor))
-    {
-        return "Booleano (true ou false)";
-    }else if (ehInteiro(aux_valor))
-    {
-        return "Números inteiros";
-    }else if (ehReal(aux_valor))
-    {
-        return "Número racional";
-    }else {
-
-        return "String (código de até 16 letras)";
     }
 }

@@ -78,8 +78,8 @@ int buscaBinaria(Medicao medicoes[MAX_MEDICOES], int timestamp, int qtd_leituras
             return i;
         }
 
-        if (medicoes[i].timestamp < timestamp)
-        { /* Item está no sub-vetor à direita */
+        if (medicoes[i].timestamp > timestamp)
+        { /* Em ordem decrescente, o menor valor agora está na direita */
             inicio = i + 1;
         }
         else
