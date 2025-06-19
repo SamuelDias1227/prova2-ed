@@ -21,7 +21,7 @@ Onde os campos representam:
 
 - `<TIMESTAMP>`: data e hora da medida no formato **unix epoch**.  
 - `<ID_SENSOR>`: string sem espaço que representa cada sensor.  
-- `<VALOR>`: valor numérico em ponto flutuante que representa a medida fornecida pelo sensor.
+- `<VALOR>`: Valor informado do sensor.
 
 Cada sensor informa sempre o mesmo tipo de dado.
 Sensores diferentes podem informar valores de tipos diferentes.
@@ -39,7 +39,7 @@ Esse programa deverá:
 - Tratar o arquivo indicado como argumento da linha de comando de execução do programa.
 - Identificar os diferentes sensores presentes, dentro de uma lista de finita de tipos suportatos.
 - Separar os dados em arquivos distintos para cada sensor.
-- Em cada arquivo, ordenar as leituras por timestamp (data e hora representada em unix epoch) em ordem crescente.
+- Em cada arquivo, ordenar as leituras por timestamp (data e hora representada em unix epoch) em ordem decrescente.
 
 > A ordenação dos dados dentro de cada arquivo **não é opcional**: ela é necessária para permitir o uso de **busca binária** no processo de consulta descrito no Programa 2.
 
@@ -47,7 +47,9 @@ Esse programa deverá:
 
 ## Programa 2 – Consulta por Instante
 
-O segundo programa permitirá que o operador informe:
+O segundo programa deve pesquisar a medida de um sensor especifico mais próxima de uma data e hora informada.
+
+Esse programa deve receber da linha de comando:
 
 - O nome de um sensor (por exemplo, `TEMP`)
 - Uma data e hora da medida consultada
@@ -62,21 +64,24 @@ O programa deve então localizar, usando **busca binária**, a leitura registrad
 
 Crie um programa adicional que gere um arquivo de teste com as seguintes características:
 
-- O programa deve receber, como entrada do usuário, a **data de inicio do intervalo (dia, mês e ano)** de amostras geradas aleatoriamente.
-- O programa deve receber, como entrada do usuário, a **data de fim do intervalo (dia, mês e ano)** de amostras geradas aleatoriamente.
-- O programa deve receber os nomes dos sensores.
-- O programa deve receber o tipo do dado da amostra informada por cada tipo de sensor.
+- O programa deve receber como argumento da linha de comando:
+
+    - A **data de inicio do intervalo (dia, mês, ano, hora, min e seg)** de amostras geradas aleatoriamente.
+    - A **data de fim do intervalo (dia, mês, ano, hora, min e seg)** de amostras geradas aleatoriamente.
+    - Os nomes dos sensores.
+    - O tipo do dado da amostra informada por cada tipo de sensor.
+        - CONJ_Z:  para dados tipo inteiro
+        - CONJ_Q: para dados do tipo float
+        - TEXTO para dados do tipo string
+        - BINARIO: para dados do tipo booleano.
+
 - Para cada sensor, o programa deve criar **2000 leituras aleatórias**, com valores numéricos aleatórios e **timestamps sorteados dentro da data fornecida** pelo usuário.
 
-O arquivo gerado deve seguir o formato:
+- O arquivo gerado deve seguir o formato: < TIMESTAMP > < ID_SENSOR > < VALOR >
 
-< TIMESTAMP > < ID_SENSOR > < VALOR >
-
-Onde:
-
-- `<TIMESTAMP>`: data e hora da medida no formato **unix epoch**.  
-- `<ID_SENSOR>`: string sem espaço que representa cada sensor.  
-- `<VALOR>`: valor numérico em ponto flutuante que representa a medida fornecida pelo sensor.
+    - `<TIMESTAMP>`: data e hora da medida no formato **unix epoch**.  
+    - `<ID_SENSOR>`: string sem espaço que representa cada sensor.  
+    - `<VALOR>`: Valor aleatório da amostra de acordo com o tipo indicado para o sensor.
 
 ---
 
@@ -92,32 +97,24 @@ A função abaixo captura a data e hora da interface de entrada e retorna o time
 #include <stdio.h>
 #include <time.h>
 
-time_t capturar_timestamp_valido() {
-    int dia, mes, ano, hora, min, seg;
+// Verificar antes de chamar essa funcao que os valores sao validos
+time_t converter_para_timestap(int dia, int mes, int ano, int hora, int min, int seg) 
+{
     struct tm t;
 
-    while (1) {
-        printf("Digite a data e hora (dd mm aaaa hh mm ss): ");
-        if (scanf("%d %d %d %d %d %d", &dia, &mes, &ano, &hora, &min, &seg) != 6) {
-            while (getchar() != '\n');
-            printf("Entrada inválida. Tente novamente.\n");
-            continue;
-        }
+    t.tm_year = ano - 1900;
+    t.tm_mon = mes - 1;
+    t.tm_mday = dia;
+    t.tm_hour = hora;
+    t.tm_min = min;
+    t.tm_sec = seg;
+    t.tm_isdst = -1;
 
-        t.tm_year = ano - 1900;
-        t.tm_mon = mes - 1;
-        t.tm_mday = dia;
-        t.tm_hour = hora;
-        t.tm_min = min;
-        t.tm_sec = seg;
-        t.tm_isdst = -1;
-
-        time_t timestamp = mktime(&t);
-        if (timestamp == -1) {
-            printf("Data inválida. Tente novamente.\n");
-        } else {
-            return timestamp;
-        }
+    time_t timestamp = mktime(&t);
+    if (timestamp == -1) {
+        printf("Data inválida. Tente novamente.\n");
+    } else {
+        return timestamp;
     }
 }
 
@@ -125,7 +122,7 @@ time_t capturar_timestamp_valido() {
 ```
 ## Geração de Timestamps Aleatórios
 
-A função abaixo retorna um timestamp aleatório dentro de uma data representada pelos valores de dia, mês e ano.
+A função abaixo retorna um timestamp aleatório dentro de uma data representada pelos valores de dia, mês e ano:
 
 ### 📄 Exemplo em C:
 
@@ -134,29 +131,17 @@ A função abaixo retorna um timestamp aleatório dentro de uma data representad
 #include <stdlib.h>
 #include <time.h>
 
-time_t gerar_timestamp_aleatorio(int dia, int mes, int ano) {
-    struct tm t;
+time_t gerar_timestamp_aleatorio(struct tm * inicial, struct tm * final) {
+    
     time_t timestamp_inicial, timestamp_final;
-    
-    t.tm_year = ano - 1900;
-    t.tm_mon = mes - 1;
-    t.tm_mday = dia;
-    t.tm_hour = 0;
-    t.tm_min = 0;
-    t.tm_sec = 0;
-    t.tm_isdst = -1;
-    
-    timestamp_inicial = mktime(&t);
+        
+    timestamp_inicial = mktime(&inicial);
     if (timestamp_inicial == -1) {
         printf("Data inválida.\n");
         return -1;
     }
 
-    t.tm_hour = 23;
-    t.tm_min = 59;
-    t.tm_sec = 59;
-    
-    timestamp_final = mktime(&t);
+    timestamp_final = mktime(&final);
     if (timestamp_final == -1) {
         printf("Data inválida.\n");
         return -1;
